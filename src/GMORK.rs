@@ -2,7 +2,7 @@
 
 use crate::*;
 
-/// [GMORK] implements general multi-order Runge-Kutta methods.
+/// [GMORK] is an implementation of general multi-order Runge-Kutta methods.
 pub struct GMORK {
     nodes: Vec<f64>,
     main_weights: Vec<Vec<Vec<f64>>>,
@@ -120,8 +120,8 @@ impl GMORK {
         let mut sum;
         for k in 0..y0.len() {
             for N in 0..y0[k].len() {
-                for N1 in 1..=N {
-                    y[j][k][N] += secondary_weights[N][N1][j] * h_powers[N1] * y0[k][N - N1]
+                for N1 in 0..N {
+                    y[j][k][N] += secondary_weights[N][N1][j] * h_powers[N-N1] * y0[k][N1]
                 }
                 sum = 0.;
                 for &j1 in J {

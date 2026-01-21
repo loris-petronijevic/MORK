@@ -1,8 +1,12 @@
-[MORK](https://github.com/ziiirozone/MORK) is a rust crate that implements multi-order Runge-Kutta methods and Runge-Kutta methods, as described in the paper "Multi-order Runge-Kutta methods or how to numerically solve initial value problems of any order" available on arXiv : https://arxiv.org/abs/2509.23513
+[MORK](https://github.com/loris-petronijevic/MORK) is a rust crate that implements multi-order Runge-Kutta methods and Runge-Kutta methods, as described in the paper "Multi-order Runge-Kutta methods or how to numerically solve initial value problems of any order" available on arXiv : https://arxiv.org/abs/2509.23513
 
-This crate can be used in python with [MORKpy](https://github.com/ziiirozone/MORKpy/tree/main).
+This crate can be used in python using [MORKpy](https://github.com/loris-petronijevic/MORKpy).
 
-A program included in the code allows to test those methods with a graphical interface :
+See the example [solve_ivp](https://github.com/loris-petronijevic/MORK/tree/master/examples/solve_ivp) for a basic use case.
+
+To read the documentation of this crate download the [doc folder](https://github.com/loris-petronijevic/MORK/tree/master/target), then navigate to the MORK folder and open index.html.
+
+A program included in the code allows to test those methods on predefined initial value problems with a graphical interface :
 
 <img width="375" height="378" alt="screenshot" src="https://github.com/user-attachments/assets/d59d845d-450e-4d70-9237-bb0baf81e1f7" />
 

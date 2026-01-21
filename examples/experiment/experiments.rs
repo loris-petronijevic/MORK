@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
 
+/// [Experiment] indicates that a struct  
 pub trait Experiment {
     fn differential_equation(&self, t: f64, y: &Vec<Vec<f64>>) -> Vec<f64>;
     fn is_solved(&self) -> bool;

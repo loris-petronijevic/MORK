@@ -1,8 +1,8 @@
-//! Implementation of [RK] and a list of such methods.
+//! Implementation of [RK], and a list of Runge-Kutta methods.
 
 use crate::*;
 
-/// [RK] implements general multi-order Runge-Kutta methods.
+/// [RK] is an implementation of Runge-Kutta methods.
 pub struct RK {
     pub s: usize,
     pub nodes: Vec<f64>,
@@ -40,32 +40,6 @@ impl RK {
             error_fraction: ERROR_FRACTION,
             min_iter: MIN_ITER,
             max_iter: MAX_ITER,
-        }
-    }
-
-    fn add_constant_part(
-        J: &Vec<usize>,
-        j: usize,
-        y: &mut Vec<Vec<Vec<f64>>>,
-        y0: &Vec<Vec<f64>>,
-        F: &Vec<Vec<f64>>,
-        h: f64,
-        weights: &Vec<Vec<f64>>,
-    ) {
-        let mut sum;
-        for k in 0..y0.len() {
-            sum = 0.;
-            for &j1 in J {
-                sum += weights[j][j1] * F[j1][k];
-            }
-            y[j][k][0] += h * sum;
-            for N in 1..y0[k].len() {
-                sum = 0.;
-                for &j1 in J {
-                    sum += weights[j][j1] * y[j1][k][N - 1];
-                }
-                y[j][k][N] += h * sum;
-            }
         }
     }
 
@@ -136,19 +110,47 @@ impl RK {
     ) -> Vec<Vec<f64>> {
         let mut F: Vec<Vec<f64>> = (0..s).map(|_| vec![0.; y0.len()]).collect();
         let mut y: Vec<Vec<Vec<f64>>> = (0..=s).map(|_| y0.clone()).collect();
+        let mut sum;
         for task in computation_order.iter() {
             match task {
                 SCC::Explicit(j) => {
                     let j = *j;
-                    RK::add_constant_part(&(0..s).collect(), j, &mut y, y0, &F, h, weights);
+                    for k in 0..y0.len() {
+                        sum = 0.;
+                        for j1 in 0..s {
+                            sum += weights[j][j1] * F[j1][k];
+                        }
+                        y[j][k][0] += h * sum;
+                        for N in 1..y0[k].len() {
+                            sum = 0.;
+                            for j1 in 0..s {
+                                sum += weights[j][j1] * y[j1][k][N - 1];
+                            }
+                            y[j][k][N] += h * sum;
+                        }
+                    }
                     if j != s {
                         F[j] = f(t + nodes[j] * h, &y[j]);
                     }
                 }
+
                 SCC::Implicit(J, comp_J) => {
                     // calculate constant terms
                     for &j in J {
-                        RK::add_constant_part(comp_J, j, &mut y, y0, &F, h, weights);
+                        for k in 0..y0.len() {
+                            sum = 0.;
+                            for &j1 in comp_J {
+                                sum += weights[j][j1] * F[j1][k];
+                            }
+                            y[j][k][0] += h * sum;
+                            for N in 1..y0[k].len() {
+                                sum = 0.;
+                                for &j1 in comp_J {
+                                    sum += weights[j][j1] * y[j1][k][N - 1];
+                                }
+                                y[j][k][N] += h * sum;
+                            }
+                        }
                     }
                     RK::picard_iterations(
                         threshold, min_iter, max_iter, t, h, nodes, &mut F, J, f, weights, y0,
@@ -199,7 +201,7 @@ impl Solver for RK {
 }
 
 pub mod list {
-    //! A list of node-determined multi-order Runge-Kutta methods.
+    //! A list of Runge-Kutta methods.
 
     use super::RK;
 

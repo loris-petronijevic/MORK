@@ -1,3 +1,4 @@
+//! Implementation of some functions related to graph theory necessary for setting up the methods.
 
 /// [NodeState] represents the state of a node in gabow's algorithm.
 #[derive(Debug, Clone, PartialEq)]

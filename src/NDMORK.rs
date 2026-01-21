@@ -1,8 +1,8 @@
-//! Implementation of [NDMORK] and a list of such methods.
+//! Implementation of [NDMORK], and a list of node-determined methods.
 
 use crate::*;
 
-/// [NDMORK] implements general multi-order Runge-Kutta methods.
+/// [NDMORK] is an implement of node-determined multi-order Runge-Kutta methods.
 pub struct NDMORK {
     s: usize,
     pub stored_length: usize,
@@ -21,7 +21,7 @@ pub struct NDMORK {
 }
 
 impl NDMORK {
-    /// [new][NDMORK::new] creates a new instance of [NDMORK].
+    /// [new][NDMORK::new] creates a new instance of [NDMORK]. Requires the nodes, the weight function and the maximum weight digraph of the method.
     pub fn new(
         weights_function: Box<dyn Fn(u32) -> Vec<Vec<f64>>>,
         nodes: Vec<f64>,
@@ -106,35 +106,6 @@ impl NDMORK {
         *stored_length = n;
     }
 
-    fn add_constant_part(
-        J: &Vec<usize>,
-        j: usize,
-        y: &mut Vec<Vec<Vec<f64>>>,
-        y0: &Vec<Vec<f64>>,
-        F: &Vec<Vec<f64>>,
-        nodes: &Vec<f64>,
-        weights: &Vec<Vec<Vec<f64>>>,
-        coefficients: &Vec<Vec<f64>>,
-        h_powers: &Vec<f64>,
-        factorial: &Vec<f64>,
-    ) {
-        let mut sum;
-        for k in 0..y0.len() {
-            for N in 0..y0[k].len() {
-                if nodes[j] != 0. {
-                    for N1 in 1..=N {
-                        y[j][k][N] += coefficients[N1][j] * h_powers[N1] * y0[k][N - N1]
-                    }
-                }
-                sum = 0.;
-                for &j1 in J {
-                    sum += weights[N][j][j1] * F[j1][k];
-                }
-                y[j][k][N] += h_powers[N + 1] / factorial[N + 1] * sum;
-            }
-        }
-    }
-
     fn picard_iterations(
         t: f64,
         h: f64,
@@ -184,8 +155,7 @@ impl NDMORK {
         }
     }
 
-    /// [approximate_ND][NDMORK::approximate_ND] is an implementation of the approximation of a method.
-    pub fn approximate_ND(
+    fn approximate_ND(
         t: f64,
         h: f64,
         f: &dyn Fn(f64, &Vec<Vec<f64>>) -> Vec<f64>,
@@ -204,41 +174,50 @@ impl NDMORK {
     ) -> Vec<Vec<f64>> {
         let mut F: Vec<Vec<f64>> = (0..s).map(|_| vec![0.; y0.len()]).collect();
         let mut y: Vec<Vec<Vec<f64>>> = (0..=s).map(|_| y0.clone()).collect();
-        let J_explicit = (0..s).collect();
+        let mut sum;
+
+        // Add initial values
+        for j in 0..=s {
+            if nodes[j] != 0. {
+                for k in 0..y0.len() {
+                    for N in 0..y0[k].len() {
+                        for N1 in 0..N {
+                            y[j][k][N] += coefficients[N-N1][j] * h_powers[N-N1] * y0[k][N1]
+                        }
+                    }
+                }
+            }
+        }
+
         for task in computation_order.iter() {
             match task {
                 SCC::Explicit(j) => {
                     let j = *j;
-                    NDMORK::add_constant_part(
-                        &J_explicit,
-                        j,
-                        &mut y,
-                        y0,
-                        &F,
-                        nodes,
-                        weights,
-                        coefficients,
-                        h_powers,
-                        factorial,
-                    );
+                    for k in 0..y0.len() {
+                        for N in 0..y0[k].len() {
+                            sum = 0.;
+                            for j1 in 0..s {
+                                sum += weights[N][j][j1] * F[j1][k];
+                            }
+                            y[j][k][N] += h_powers[N + 1] / factorial[N + 1] * sum;
+                        }
+                    }
                     if j != s {
                         F[j] = f(t + nodes[j] * h, &y[j]);
                     }
                 }
+                
                 SCC::Implicit(J, comp_J) => {
                     for &j in J {
-                        NDMORK::add_constant_part(
-                            comp_J,
-                            j,
-                            &mut y,
-                            y0,
-                            &F,
-                            nodes,
-                            weights,
-                            coefficients,
-                            h_powers,
-                            factorial,
-                        );
+                        for k in 0..y0.len() {
+                            for N in 0..y0[k].len() {
+                                sum = 0.;
+                                for &j1 in comp_J {
+                                    sum += weights[N][j][j1] * F[j1][k];
+                                }
+                                y[j][k][N] += h_powers[N + 1] / factorial[N + 1] * sum;
+                            }
+                        }
                     }
                     NDMORK::picard_iterations(
                         t,
@@ -452,7 +431,7 @@ pub mod list {
         )
     }
 
-    pub fn MO_RK4_weight_function(N: u32) -> Vec<Vec<f64>> {
+    pub fn MORK4_weight_function(N: u32) -> Vec<Vec<f64>> {
         let N = N as i32;
         let Nf = N as f64;
         vec![
@@ -474,7 +453,7 @@ pub mod list {
         ]
     }
 
-    pub fn MO_RK4_nodes() -> Vec<f64> {
+    pub fn MORK4_nodes() -> Vec<f64> {
         vec![0., 0.5, 0.5, 1., 1.]
     }
 
@@ -488,15 +467,15 @@ pub mod list {
         ]
     }
 
-    pub fn MO_RK4() -> NDMORK {
+    pub fn MORK4() -> NDMORK {
         NDMORK::new(
-            Box::new(MO_RK4_weight_function),
-            MO_RK4_nodes(),
+            Box::new(MORK4_weight_function),
+            MORK4_nodes(),
             MO_RK4_weight_graph(),
         )
     }
 
-    pub fn MO_RK4b_weight_function(N: u32) -> Vec<Vec<f64>> {
+    pub fn MORK4b_weight_function(N: u32) -> Vec<Vec<f64>> {
         let N = N as i32;
         let Nf = N as f64;
         vec![
@@ -523,11 +502,11 @@ pub mod list {
         ]
     }
 
-    pub fn MO_RK4b_nodes() -> Vec<f64> {
+    pub fn MORK4b_nodes() -> Vec<f64> {
         vec![0., 0.5, 0.5, 1., 1.]
     }
 
-    pub fn MO_RK4b_weight_graph() -> Vec<Vec<bool>> {
+    pub fn MORK4b_weight_graph() -> Vec<Vec<bool>> {
         vec![
             vec![false, false, false, false, false],
             vec![true, false, false, false, false],
@@ -537,11 +516,11 @@ pub mod list {
         ]
     }
 
-    pub fn MO_RK4b() -> NDMORK {
+    pub fn MORK4b() -> NDMORK {
         NDMORK::new(
-            Box::new(MO_RK4b_weight_function),
-            MO_RK4b_nodes(),
-            MO_RK4b_weight_graph(),
+            Box::new(MORK4b_weight_function),
+            MORK4b_nodes(),
+            MORK4b_weight_graph(),
         )
     }
 
