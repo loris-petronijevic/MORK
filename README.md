@@ -4,7 +4,7 @@ This crate can be used in python using [MORKpy](https://github.com/loris-petroni
 
 See the example [solve_ivp](https://github.com/loris-petronijevic/MORK/tree/master/examples/solve_ivp) for a basic use case.
 
-To read the documentation of this crate download the [doc folder](https://github.com/loris-petronijevic/MORK/tree/master/target), then navigate to the MORK folder and open index.html.
+To read the documentation of this crate download the [doc folder](https://github.com/loris-petronijevic/MORK/tree/master/doc), then navigate to the MORK folder and open index.html.
 
 A program included in the code allows to test those methods on predefined initial value problems with a graphical interface :
 
