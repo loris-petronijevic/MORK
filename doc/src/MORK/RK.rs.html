@@ -327,42 +327,7 @@
 <a href="#326" id="326">326</a>
 <a href="#327" id="327">327</a>
 <a href="#328" id="328">328</a>
-<a href="#329" id="329">329</a>
-<a href="#330" id="330">330</a>
-<a href="#331" id="331">331</a>
-<a href="#332" id="332">332</a>
-<a href="#333" id="333">333</a>
-<a href="#334" id="334">334</a>
-<a href="#335" id="335">335</a>
-<a href="#336" id="336">336</a>
-<a href="#337" id="337">337</a>
-<a href="#338" id="338">338</a>
-<a href="#339" id="339">339</a>
-<a href="#340" id="340">340</a>
-<a href="#341" id="341">341</a>
-<a href="#342" id="342">342</a>
-<a href="#343" id="343">343</a>
-<a href="#344" id="344">344</a>
-<a href="#345" id="345">345</a>
-<a href="#346" id="346">346</a>
-<a href="#347" id="347">347</a>
-<a href="#348" id="348">348</a>
-<a href="#349" id="349">349</a>
-<a href="#350" id="350">350</a>
-<a href="#351" id="351">351</a>
-<a href="#352" id="352">352</a>
-<a href="#353" id="353">353</a>
-<a href="#354" id="354">354</a>
-<a href="#355" id="355">355</a>
-<a href="#356" id="356">356</a>
-<a href="#357" id="357">357</a>
-<a href="#358" id="358">358</a>
-<a href="#359" id="359">359</a>
-<a href="#360" id="360">360</a>
-<a href="#361" id="361">361</a>
-<a href="#362" id="362">362</a>
-<a href="#363" id="363">363</a>
-<a href="#364" id="364">364</a></pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of [RK] and a list of Runge-Kutta methods.
+<a href="#329" id="329">329</a></pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of [RK], and a list of Runge-Kutta methods.
 
 </span><span class="kw">use crate</span>::<span class="kw-2">*</span>;
 
@@ -378,7 +343,7 @@
 }
 
 <span class="kw">impl </span>RK {
-    <span class="doccomment">/// [new][RK::new] creates a new instance of [GMORK].
+    <span class="doccomment">/// [new][RK::new] creates a new instance of [RK].
     </span><span class="kw">pub fn </span>new(weights: Vec&lt;Vec&lt;f64&gt;&gt;, nodes: Vec&lt;f64&gt;) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>s = weights.len() - <span class="number">1</span>;
         <span class="kw">let </span>weight_graph = (<span class="number">0</span>..=s)
@@ -408,30 +373,27 @@
     }
 
     <span class="kw">fn </span>picard_iterations(
-        threshold: f64,
-        min_iter: u32,
-        max_iter: u32,
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        f: <span class="kw-2">&amp;</span><span class="kw">dyn </span>Fn(f64, <span class="kw-2">&amp;</span>Vec&lt;Vec&lt;f64&gt;&gt;) -&gt; Vec&lt;f64&gt;,
+        y0: <span class="kw-2">&amp;</span>Vec&lt;Vec&lt;f64&gt;&gt;,
         t: f64,
         h: f64,
-        nodes: <span class="kw-2">&amp;</span>Vec&lt;f64&gt;,
-        F: <span class="kw-2">&amp;mut </span>Vec&lt;Vec&lt;f64&gt;&gt;,
         J: <span class="kw-2">&amp;</span>Vec&lt;usize&gt;,
-        f: <span class="kw-2">&amp;</span><span class="kw">dyn </span>Fn(f64, <span class="kw-2">&amp;</span>Vec&lt;Vec&lt;f64&gt;&gt;) -&gt; Vec&lt;f64&gt;,
-        weights: <span class="kw-2">&amp;</span>Vec&lt;Vec&lt;f64&gt;&gt;,
-        y0: <span class="kw-2">&amp;</span>Vec&lt;Vec&lt;f64&gt;&gt;,
         y: <span class="kw-2">&amp;mut </span>Vec&lt;Vec&lt;Vec&lt;f64&gt;&gt;&gt;,
+        F: <span class="kw-2">&amp;mut </span>Vec&lt;Vec&lt;f64&gt;&gt;,
+        threshold: f64,
     ) {
         <span class="kw">let </span>constant = y.clone();
         <span class="kw">let </span><span class="kw-2">mut </span>iter_count = <span class="number">0</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>d = threshold + <span class="number">1.</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>f_cache;
         <span class="kw">let </span><span class="kw-2">mut </span>sum;
-        <span class="kw">while </span>iter_count &lt; min_iter || (d &gt; threshold &amp;&amp; iter_count &lt; max_iter) {
+        <span class="kw">while </span>iter_count &lt; <span class="self">self</span>.min_iter || (d &gt; threshold &amp;&amp; iter_count &lt; <span class="self">self</span>.max_iter) {
             iter_count += <span class="number">1</span>;
             <span class="comment">// update evaluations and calculate difference
             </span>d = <span class="number">0.</span>;
             <span class="kw">for </span><span class="kw-2">&amp;</span>j <span class="kw">in </span>J {
-                f_cache = f(t + nodes[j] * h, <span class="kw-2">&amp;</span>y[j]);
+                f_cache = f(t + <span class="self">self</span>.nodes[j] * h, <span class="kw-2">&amp;</span>y[j]);
                 <span class="comment">// calculate difference for threshold
                 </span><span class="kw">for </span>k <span class="kw">in </span><span class="number">0</span>..f_cache.len() {
                     d = d.max((f_cache[k] - F[j][k]).abs());
@@ -444,86 +406,18 @@
                     <span class="kw">for </span>N <span class="kw">in </span>(<span class="number">1</span>..y0[k].len()).rev() {
                         sum = <span class="number">0.</span>;
                         <span class="kw">for </span><span class="kw-2">&amp;</span>j1 <span class="kw">in </span>J {
-                            sum += weights[j][j1] * y[j1][k][N - <span class="number">1</span>];
+                            sum += <span class="self">self</span>.weights[j][j1] * y[j1][k][N - <span class="number">1</span>];
                         }
                         y[j][k][N] = constant[j][k][N] + h * sum;
                     }
                     sum = <span class="number">0.</span>;
                     <span class="kw">for </span><span class="kw-2">&amp;</span>j1 <span class="kw">in </span>J {
-                        sum += weights[j][j1] * F[j1][k];
+                        sum += <span class="self">self</span>.weights[j][j1] * F[j1][k];
                     }
                     y[j][k][<span class="number">0</span>] = constant[j][k][<span class="number">0</span>] + h * sum;
                 }
             }
         }
-    }
-
-    <span class="doccomment">/// [approximate_RK][RK::approximate_RK] is an implementation of the approximation of a method.
-    </span><span class="kw">pub fn </span>approximate_RK(
-        t: f64,
-        h: f64,
-        f: <span class="kw-2">&amp;</span><span class="kw">dyn </span>Fn(f64, <span class="kw-2">&amp;</span>Vec&lt;Vec&lt;f64&gt;&gt;) -&gt; Vec&lt;f64&gt;,
-        y0: <span class="kw-2">&amp;</span>Vec&lt;Vec&lt;f64&gt;&gt;,
-        s: usize,
-        threshold: f64,
-        computation_order: <span class="kw-2">&amp;</span>Vec&lt;SCC&gt;,
-        weights: <span class="kw-2">&amp;</span>Vec&lt;Vec&lt;f64&gt;&gt;,
-        nodes: <span class="kw-2">&amp;</span>Vec&lt;f64&gt;,
-        min_iter: u32,
-        max_iter: u32,
-    ) -&gt; Vec&lt;Vec&lt;f64&gt;&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>F: Vec&lt;Vec&lt;f64&gt;&gt; = (<span class="number">0</span>..s).map(|<span class="kw">_</span>| <span class="macro">vec!</span>[<span class="number">0.</span>; y0.len()]).collect();
-        <span class="kw">let </span><span class="kw-2">mut </span>y: Vec&lt;Vec&lt;Vec&lt;f64&gt;&gt;&gt; = (<span class="number">0</span>..=s).map(|<span class="kw">_</span>| y0.clone()).collect();
-        <span class="kw">let </span><span class="kw-2">mut </span>sum;
-        <span class="kw">for </span>task <span class="kw">in </span>computation_order.iter() {
-            <span class="kw">match </span>task {
-                SCC::Explicit(j) =&gt; {
-                    <span class="kw">let </span>j = <span class="kw-2">*</span>j;
-                    <span class="kw">for </span>k <span class="kw">in </span><span class="number">0</span>..y0.len() {
-                        sum = <span class="number">0.</span>;
-                        <span class="kw">for </span>j1 <span class="kw">in </span><span class="number">0</span>..s {
-                            sum += weights[j][j1] * F[j1][k];
-                        }
-                        y[j][k][<span class="number">0</span>] += h * sum;
-                        <span class="kw">for </span>N <span class="kw">in </span><span class="number">1</span>..y0[k].len() {
-                            sum = <span class="number">0.</span>;
-                            <span class="kw">for </span>j1 <span class="kw">in </span><span class="number">0</span>..s {
-                                sum += weights[j][j1] * y[j1][k][N - <span class="number">1</span>];
-                            }
-                            y[j][k][N] += h * sum;
-                        }
-                    }
-                    <span class="kw">if </span>j != s {
-                        F[j] = f(t + nodes[j] * h, <span class="kw-2">&amp;</span>y[j]);
-                    }
-                }
-
-                SCC::Implicit(J, comp_J) =&gt; {
-                    <span class="comment">// calculate constant terms
-                    </span><span class="kw">for </span><span class="kw-2">&amp;</span>j <span class="kw">in </span>J {
-                        <span class="kw">for </span>k <span class="kw">in </span><span class="number">0</span>..y0.len() {
-                            sum = <span class="number">0.</span>;
-                            <span class="kw">for </span><span class="kw-2">&amp;</span>j1 <span class="kw">in </span>comp_J {
-                                sum += weights[j][j1] * F[j1][k];
-                            }
-                            y[j][k][<span class="number">0</span>] += h * sum;
-                            <span class="kw">for </span>N <span class="kw">in </span><span class="number">1</span>..y0[k].len() {
-                                sum = <span class="number">0.</span>;
-                                <span class="kw">for </span><span class="kw-2">&amp;</span>j1 <span class="kw">in </span>comp_J {
-                                    sum += weights[j][j1] * y[j1][k][N - <span class="number">1</span>];
-                                }
-                                y[j][k][N] += h * sum;
-                            }
-                        }
-                    }
-                    RK::picard_iterations(
-                        threshold, min_iter, max_iter, t, h, nodes, <span class="kw-2">&amp;mut </span>F, J, f, weights, y0,
-                        <span class="kw-2">&amp;mut </span>y,
-                    );
-                }
-            }
-        }
-        <span class="kw">return </span>y[s].clone();
     }
 }
 
@@ -548,24 +442,60 @@
             }
         }
         threshold <span class="kw-2">*</span>= <span class="self">self</span>.error_fraction;
-        RK::approximate_RK(
-            t,
-            h,
-            f,
-            y0,
-            <span class="self">self</span>.s,
-            threshold,
-            <span class="kw-2">&amp;</span><span class="self">self</span>.computation_order,
-            <span class="kw-2">&amp;</span><span class="self">self</span>.weights,
-            <span class="kw-2">&amp;</span><span class="self">self</span>.nodes,
-            <span class="self">self</span>.min_iter,
-            <span class="self">self</span>.max_iter,
-        )
+        <span class="kw">let </span><span class="kw-2">mut </span>F: Vec&lt;Vec&lt;f64&gt;&gt; = (<span class="number">0</span>..<span class="self">self</span>.s).map(|<span class="kw">_</span>| <span class="macro">vec!</span>[<span class="number">0.</span>; y0.len()]).collect();
+        <span class="kw">let </span><span class="kw-2">mut </span>y: Vec&lt;Vec&lt;Vec&lt;f64&gt;&gt;&gt; = (<span class="number">0</span>..=<span class="self">self</span>.s).map(|<span class="kw">_</span>| y0.clone()).collect();
+        <span class="kw">let </span><span class="kw-2">mut </span>sum;
+        <span class="kw">for </span>task <span class="kw">in </span><span class="self">self</span>.computation_order.iter() {
+            <span class="kw">match </span>task {
+                SCC::Explicit(j) =&gt; {
+                    <span class="kw">let </span>j = <span class="kw-2">*</span>j;
+                    <span class="kw">for </span>k <span class="kw">in </span><span class="number">0</span>..y0.len() {
+                        sum = <span class="number">0.</span>;
+                        <span class="kw">for </span>j1 <span class="kw">in </span><span class="number">0</span>..<span class="self">self</span>.s {
+                            sum += <span class="self">self</span>.weights[j][j1] * F[j1][k];
+                        }
+                        y[j][k][<span class="number">0</span>] += h * sum;
+                        <span class="kw">for </span>N <span class="kw">in </span><span class="number">1</span>..y0[k].len() {
+                            sum = <span class="number">0.</span>;
+                            <span class="kw">for </span>j1 <span class="kw">in </span><span class="number">0</span>..<span class="self">self</span>.s {
+                                sum += <span class="self">self</span>.weights[j][j1] * y[j1][k][N - <span class="number">1</span>];
+                            }
+                            y[j][k][N] += h * sum;
+                        }
+                    }
+                    <span class="kw">if </span>j != <span class="self">self</span>.s {
+                        F[j] = f(t + <span class="self">self</span>.nodes[j] * h, <span class="kw-2">&amp;</span>y[j]);
+                    }
+                }
+
+                SCC::Implicit(J, comp_J) =&gt; {
+                    <span class="comment">// calculate constant terms
+                    </span><span class="kw">for </span><span class="kw-2">&amp;</span>j <span class="kw">in </span>J {
+                        <span class="kw">for </span>k <span class="kw">in </span><span class="number">0</span>..y0.len() {
+                            sum = <span class="number">0.</span>;
+                            <span class="kw">for </span><span class="kw-2">&amp;</span>j1 <span class="kw">in </span>comp_J {
+                                sum += <span class="self">self</span>.weights[j][j1] * F[j1][k];
+                            }
+                            y[j][k][<span class="number">0</span>] += h * sum;
+                            <span class="kw">for </span>N <span class="kw">in </span><span class="number">1</span>..y0[k].len() {
+                                sum = <span class="number">0.</span>;
+                                <span class="kw">for </span><span class="kw-2">&amp;</span>j1 <span class="kw">in </span>comp_J {
+                                    sum += <span class="self">self</span>.weights[j][j1] * y[j1][k][N - <span class="number">1</span>];
+                                }
+                                y[j][k][N] += h * sum;
+                            }
+                        }
+                    }
+                    <span class="self">self</span>.picard_iterations(f, y0, t, h, J, <span class="kw-2">&amp;mut </span>y, <span class="kw-2">&amp;mut </span>F, threshold);
+                }
+            }
+        }
+        <span class="kw">return </span>y[<span class="self">self</span>.s].clone();
     }
 }
 
 <span class="kw">pub mod </span>list {
-    <span class="doccomment">//! A list of node-determined multi-order Runge-Kutta methods.
+    <span class="doccomment">//! A list of Runge-Kutta methods.
 
     </span><span class="kw">use </span><span class="kw">super</span>::RK;
 
@@ -725,4 +655,5 @@
     <span class="kw">pub fn </span>gauss_legendre() -&gt; RK {
         RK::new(gauss_legendre_weights(), gauss_legendre_nodes())
     }
-}</code></pre></div></section></main></body></html>
+}
+</code></pre></div></section></main></body></html>

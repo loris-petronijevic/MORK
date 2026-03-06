@@ -8,7 +8,7 @@ use std::io::ErrorKind;
 
 use crate::experiment_picker::*;
 use crate::experiments::*;
-use MORK::NDMORK::list::*;
+use MORK::MORK::list::*;
 use MORK::RK::list::*;
 use MORK::Solver;
 use eframe::egui;

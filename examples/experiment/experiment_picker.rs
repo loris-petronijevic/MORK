@@ -18,7 +18,8 @@ const SOLUTION_ERROR_MSG: &str =
 enum Goal {
     Order,
     Plot,
-    Measure,
+    Timer,
+    Convergence,
 }
 
 pub struct OrderParameters {
@@ -55,18 +56,36 @@ impl Default for PlotParameters {
     }
 }
 
-pub struct MesureParameters {
+pub struct TimerParameters {
     step_size: f64,
     repeats: u32,
     steps: u32,
 }
 
-impl Default for MesureParameters {
+impl Default for TimerParameters {
     fn default() -> Self {
-        MesureParameters {
+        TimerParameters {
             step_size: 0.1,
             steps: 100,
             repeats: 100,
+        }
+    }
+}
+
+pub struct ConvergenceParameters {
+    left_iterations_interval: u32,
+    right_iterations_interval: u32,
+    delta_t: f64,
+    samples: u32,
+}
+
+impl Default for ConvergenceParameters {
+    fn default() -> Self {
+        ConvergenceParameters {
+            left_iterations_interval: 10,
+            right_iterations_interval: 10000,
+            delta_t: 10.,
+            samples: 20,
         }
     }
 }
@@ -86,7 +105,8 @@ pub struct ExperimentPicker {
     goal: Goal,
     order_parameters: OrderParameters,
     plot_parameters: PlotParameters,
-    measure_parameters: MesureParameters,
+    timer_parameters: TimerParameters,
+    convergence_parameters: ConvergenceParameters,
     order_error: bool,
     plot_solution_error: bool,
     path: PathBuf,
@@ -125,7 +145,8 @@ impl ExperimentPicker {
             goal: Goal::Plot,
             order_parameters: OrderParameters::default(),
             plot_parameters: PlotParameters::default(),
-            measure_parameters: MesureParameters::default(),
+            timer_parameters: TimerParameters::default(),
+            convergence_parameters: ConvergenceParameters::default(),
             order_error: false,
             plot_solution_error: false,
             path,
@@ -147,6 +168,7 @@ pub fn order_experiment(
 ) {
     let mut names = Vec::new();
     let mut data: Vec<Vec<(f64, f64)>> = Vec::new();
+
     let ratio = parameters.right_h_interval / parameters.left_h_interval;
     let h_list: Vec<f64> = (0..parameters.samples)
         .map(|i| {
@@ -163,18 +185,20 @@ pub fn order_experiment(
         .collect();
     let f: &dyn Fn(f64, &Vec<Vec<f64>>) -> Vec<f64> =
         &|t: f64, y: &Vec<Vec<f64>>| experiment.differential_equation(t, y);
+
+    // Apply selected solvers
     for solver_i in (0..solvers_selected.len()).filter(|i| solvers_selected[*i]) {
         let temp: Vec<Vec<f64>> = h_list
             .iter()
             .enumerate()
             .map(|(i, &h)| {
-                let mut a = y0.clone();
+                let mut y = y0.clone();
                 let mut t = t0;
                 for _ in 0..parameters.steps {
-                    a = solvers[solver_i].1.approximate(t, h, &f, &a);
+                    y = solvers[solver_i].1.approximate(t, h, &f, &y);
                     t += h
                 }
-                distance(&a, &solution[i])
+                distance(&y, &solution[i])
             })
             .collect();
         for k in 0..temp[0].len() {
@@ -187,6 +211,8 @@ pub fn order_experiment(
             names.push(Some(solvers[solver_i].0.clone()));
         }
     }
+
+    // Encode data in cbor file and save it
     let cbor_data: Vec<(Vec<f64>, Vec<f64>)> = (0..data.len())
         .map(|q| {
             (
@@ -198,6 +224,8 @@ pub fn order_experiment(
     let encoded = to_vec(&cbor_data).expect("failed serialization");
     let mut file = File::create(cbor_path).unwrap();
     file.write_all(&encoded).unwrap();
+
+    // Plot the data
     log_plot(
         &data,
         &(0..data.len())
@@ -223,14 +251,17 @@ pub fn plot_experiment(
     title: String,
 ) -> bool {
     let mut plot_solution_error = false;
+
     let mut names = Vec::new();
     let mut data = Vec::new();
+
     let f: &dyn Fn(f64, &Vec<Vec<f64>>) -> Vec<f64> =
         &|t: f64, y: &Vec<Vec<f64>>| experiment.differential_equation(t, y);
-    let q = (parameters.delta_t / parameters.step_size) as usize;
+    let q = (parameters.delta_t / parameters.step_size).round() as usize;
     let t: Vec<f64> = (0..=q)
         .map(|q1| t0 + parameters.step_size * q1 as f64)
         .collect();
+
     if parameters.plot_solution {
         if experiment.is_solved() {
             let y: Vec<Vec<f64>> = t
@@ -247,6 +278,7 @@ pub fn plot_experiment(
             plot_solution_error = true
         }
     }
+
     for (_, (solver_name, solver)) in solvers
         .iter_mut()
         .enumerate()
@@ -267,6 +299,7 @@ pub fn plot_experiment(
             names.push(Some(solver_name.clone() + &k.to_string()));
         }
     }
+
     let cbor_data: Vec<(Vec<f64>, Vec<f64>)> = (0..data.len())
         .map(|q| {
             (
@@ -278,6 +311,7 @@ pub fn plot_experiment(
     let encoded = to_vec(&cbor_data).expect("failed serialization");
     let mut file = File::create(cbor_path).unwrap();
     file.write_all(&encoded).unwrap();
+
     plot(
         &data,
         &(0..data.len())
@@ -291,8 +325,8 @@ pub fn plot_experiment(
     return plot_solution_error;
 }
 
-pub fn measure_experiment(
-    parameters: &MesureParameters,
+pub fn timer_experiment(
+    parameters: &TimerParameters,
     experiment: &mut Box<dyn Experiment>,
     solvers: &mut Vec<(String, Box<dyn Solver>)>,
     solvers_selected: &Vec<bool>,
@@ -342,6 +376,95 @@ pub fn measure_experiment(
     file.write_all(&encoded).unwrap();
 }
 
+pub fn convergence_experiment(
+    parameters: &ConvergenceParameters,
+    experiment: &mut Box<dyn Experiment>,
+    solvers: &mut Vec<(String, Box<dyn Solver>)>,
+    solvers_selected: &Vec<bool>,
+    distance: &Box<dyn Fn(&Vec<Vec<f64>>, &Vec<Vec<f64>>) -> Vec<f64>>,
+    t0: f64,
+    y0: Vec<Vec<f64>>,
+    plot_path: PathBuf,
+    cbor_path: PathBuf,
+    title: String,
+) {
+    let mut names = Vec::new();
+    let mut data: Vec<Vec<(f64, f64)>> = Vec::new();
+
+    let ratio =
+        parameters.right_iterations_interval as f64 / parameters.left_iterations_interval as f64;
+    #[allow(non_snake_case)]
+    let N_list: Vec<u32> = (0..parameters.samples)
+        .map(|i| {
+            (parameters.left_iterations_interval as f64
+                * ratio.powf(i as f64 / (parameters.samples - 1) as f64))
+            .round() as u32
+        })
+        .collect();
+    let f: &dyn Fn(f64, &Vec<Vec<f64>>) -> Vec<f64> =
+        &|t: f64, y: &Vec<Vec<f64>>| experiment.differential_equation(t, y);
+
+    // Apply selected solvers
+    for solver_i in (0..solvers_selected.len()).filter(|i| solvers_selected[*i]) {
+        let temp: Vec<Vec<f64>> = N_list
+            .iter()
+            .enumerate()
+            .map(|(_i, &iterations)| {
+                let mut y = y0.clone();
+                let h = parameters.delta_t / iterations as f64;
+                let mut d: Vec<f64> = distance(&y0,&y0);
+                let mut solution: Vec<Vec<f64>>;
+                for k in 0..iterations {
+                    y = solvers[solver_i]
+                        .1
+                        .approximate(t0 + h * k as f64, h, &f, &y);
+                    solution = experiment
+                        .solution(t0 + h * k as f64)
+                        .expect(SOLUTION_ERROR_MSG);
+                    for i in 0..d.len() {
+                        d[i] = d[i].max(distance(&y, &solution)[i]);
+                    }
+                }
+                d
+            })
+            .collect();
+        for k in 0..temp[0].len() {
+            data.push(
+                (0..parameters.samples as usize)
+                    .map(|q| (N_list[q] as f64, temp[q][k]))
+                    .filter(|(x, y)| *x != 0. && *y != 0.)
+                    .collect(),
+            );
+            names.push(Some(solvers[solver_i].0.clone()));
+        }
+    }
+
+    // Encode data in cbor file and save it
+    let cbor_data: Vec<(Vec<f64>, Vec<f64>)> = (0..data.len())
+        .map(|q| {
+            (
+                (0..data[q].len()).map(|k| data[q][k].0).collect(),
+                (0..data[q].len()).map(|k| data[q][k].1).collect(),
+            )
+        })
+        .collect();
+    let encoded = to_vec(&cbor_data).expect("failed serialization");
+    let mut file = File::create(cbor_path).unwrap();
+    file.write_all(&encoded).unwrap();
+
+    // Plot the data
+    log_plot(
+        &data,
+        &(0..data.len())
+            .map(|i| Palette99::pick(i).stroke_width(7))
+            .collect(),
+        &names,
+        &plot_path,
+        title.to_string(),
+        ("N".to_string(), "e".to_string()),
+    );
+}
+
 impl eframe::App for ExperimentPicker {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::SidePanel::left("exp_solver").show(ctx, |ui| {
@@ -367,7 +490,8 @@ impl eframe::App for ExperimentPicker {
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut self.goal, Goal::Plot, "Plot");
                 ui.selectable_value(&mut self.goal, Goal::Order, "Order");
-                ui.selectable_value(&mut self.goal, Goal::Measure, "Measure");
+                ui.selectable_value(&mut self.goal, Goal::Timer, "Timer");
+                ui.selectable_value(&mut self.goal, Goal::Convergence, "Convergence");
             });
             // Options according to goal
             match &self.goal {
@@ -398,9 +522,7 @@ impl eframe::App for ExperimentPicker {
                     );
 
                     ui.label("number of steps");
-                    ui.add(
-                        egui::DragValue::new(&mut self.order_parameters.steps).max_decimals(0),
-                    );
+                    ui.add(egui::DragValue::new(&mut self.order_parameters.steps).max_decimals(0));
                 }
 
                 Goal::Plot => {
@@ -434,21 +556,55 @@ impl eframe::App for ExperimentPicker {
                     );
                 }
 
-                Goal::Measure => {
+                Goal::Timer => {
                     ui.label("Step size");
                     ui.add(
-                        egui::DragValue::new(&mut self.measure_parameters.step_size)
+                        egui::DragValue::new(&mut self.timer_parameters.step_size)
                             .max_decimals(16)
                             .min_decimals(16),
                     );
                     ui.label("Number of steps");
-                    ui.add(
-                        egui::DragValue::new(&mut self.measure_parameters.steps)
-                            .max_decimals(0),
-                    );
+                    ui.add(egui::DragValue::new(&mut self.timer_parameters.steps).max_decimals(0));
                     ui.label("Number of repeatitions");
                     ui.add(
-                        egui::DragValue::new(&mut self.measure_parameters.repeats).max_decimals(0),
+                        egui::DragValue::new(&mut self.timer_parameters.repeats).max_decimals(0),
+                    );
+                }
+
+                Goal::Convergence => {
+                    // select a metric
+                    egui::ComboBox::from_label("Metrics")
+                        .selected_text(&self.metrics[self.metrics_index].0)
+                        .show_ui(ui, |ui| {
+                            for i in 0..self.metrics.len() {
+                                ui.selectable_value(&mut self.metrics_index, i, &self.metrics[i].0);
+                            }
+                        });
+                    ui.label("Samples");
+                    ui.add(
+                        egui::DragValue::new(&mut self.convergence_parameters.samples)
+                            .max_decimals(0),
+                    );
+                    ui.label("Left interval");
+                    ui.add(
+                        egui::DragValue::new(
+                            &mut self.convergence_parameters.left_iterations_interval,
+                        )
+                        .max_decimals(0),
+                    );
+                    ui.label("Right interval");
+                    ui.add(
+                        egui::DragValue::new(
+                            &mut self.convergence_parameters.right_iterations_interval,
+                        )
+                        .max_decimals(0),
+                    );
+
+                    ui.label("Delta t");
+                    ui.add(
+                        egui::DragValue::new(&mut self.convergence_parameters.delta_t)
+                            .max_decimals(16)
+                            .min_decimals(16),
                     );
                 }
             }
@@ -520,11 +676,11 @@ impl eframe::App for ExperimentPicker {
                         );
                     }
 
-                    Goal::Measure => {
+                    Goal::Timer => {
                         let mut cbor_path = self.path.clone();
-                        cbor_path.push("measure.cbor");
-                        measure_experiment(
-                            &self.measure_parameters,
+                        cbor_path.push("timer.cbor");
+                        timer_experiment(
+                            &self.timer_parameters,
                             experiment,
                             &mut self.solvers,
                             &self.solvers_selected,
@@ -532,6 +688,32 @@ impl eframe::App for ExperimentPicker {
                             y0,
                             cbor_path,
                         );
+                    }
+
+                    Goal::Convergence => {
+                        if !experiment.is_solved() {
+                            self.order_error = true;
+                        } else {
+                            let mut plot_path = self.path.clone();
+                            plot_path.push("convergence.svg");
+                            let mut cbor_path = self.path.clone();
+                            cbor_path.push("convergence.cbor");
+                            let title = format!("Convergence - {}", experiment_name);
+                            let distance: &Box<dyn Fn(&Vec<Vec<f64>>, &Vec<Vec<f64>>) -> Vec<f64>> =
+                                &self.metrics[self.metrics_index].1;
+                            convergence_experiment(
+                                &self.convergence_parameters,
+                                experiment,
+                                &mut self.solvers,
+                                &self.solvers_selected,
+                                distance,
+                                t0,
+                                y0,
+                                plot_path,
+                                cbor_path,
+                                title,
+                            );
+                        }
                     }
                 }
             }

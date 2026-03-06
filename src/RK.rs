@@ -14,7 +14,7 @@ pub struct RK {
 }
 
 impl RK {
-    /// [new][RK::new] creates a new instance of [GMORK].
+    /// [new][RK::new] creates a new instance of [RK].
     pub fn new(weights: Vec<Vec<f64>>, nodes: Vec<f64>) -> Self {
         let s = weights.len() - 1;
         let weight_graph = (0..=s)
@@ -44,30 +44,27 @@ impl RK {
     }
 
     fn picard_iterations(
-        threshold: f64,
-        min_iter: u32,
-        max_iter: u32,
+        &self,
+        f: &dyn Fn(f64, &Vec<Vec<f64>>) -> Vec<f64>,
+        y0: &Vec<Vec<f64>>,
         t: f64,
         h: f64,
-        nodes: &Vec<f64>,
-        F: &mut Vec<Vec<f64>>,
         J: &Vec<usize>,
-        f: &dyn Fn(f64, &Vec<Vec<f64>>) -> Vec<f64>,
-        weights: &Vec<Vec<f64>>,
-        y0: &Vec<Vec<f64>>,
         y: &mut Vec<Vec<Vec<f64>>>,
+        F: &mut Vec<Vec<f64>>,
+        threshold: f64,
     ) {
         let constant = y.clone();
         let mut iter_count = 0;
         let mut d = threshold + 1.;
         let mut f_cache;
         let mut sum;
-        while iter_count < min_iter || (d > threshold && iter_count < max_iter) {
+        while iter_count < self.min_iter || (d > threshold && iter_count < self.max_iter) {
             iter_count += 1;
             // update evaluations and calculate difference
             d = 0.;
             for &j in J {
-                f_cache = f(t + nodes[j] * h, &y[j]);
+                f_cache = f(t + self.nodes[j] * h, &y[j]);
                 // calculate difference for threshold
                 for k in 0..f_cache.len() {
                     d = d.max((f_cache[k] - F[j][k]).abs());
@@ -80,86 +77,18 @@ impl RK {
                     for N in (1..y0[k].len()).rev() {
                         sum = 0.;
                         for &j1 in J {
-                            sum += weights[j][j1] * y[j1][k][N - 1];
+                            sum += self.weights[j][j1] * y[j1][k][N - 1];
                         }
                         y[j][k][N] = constant[j][k][N] + h * sum;
                     }
                     sum = 0.;
                     for &j1 in J {
-                        sum += weights[j][j1] * F[j1][k];
+                        sum += self.weights[j][j1] * F[j1][k];
                     }
                     y[j][k][0] = constant[j][k][0] + h * sum;
                 }
             }
         }
-    }
-
-    /// [approximate_RK][RK::approximate_RK] is an implementation of the approximation of a method.
-    pub fn approximate_RK(
-        t: f64,
-        h: f64,
-        f: &dyn Fn(f64, &Vec<Vec<f64>>) -> Vec<f64>,
-        y0: &Vec<Vec<f64>>,
-        s: usize,
-        threshold: f64,
-        computation_order: &Vec<SCC>,
-        weights: &Vec<Vec<f64>>,
-        nodes: &Vec<f64>,
-        min_iter: u32,
-        max_iter: u32,
-    ) -> Vec<Vec<f64>> {
-        let mut F: Vec<Vec<f64>> = (0..s).map(|_| vec![0.; y0.len()]).collect();
-        let mut y: Vec<Vec<Vec<f64>>> = (0..=s).map(|_| y0.clone()).collect();
-        let mut sum;
-        for task in computation_order.iter() {
-            match task {
-                SCC::Explicit(j) => {
-                    let j = *j;
-                    for k in 0..y0.len() {
-                        sum = 0.;
-                        for j1 in 0..s {
-                            sum += weights[j][j1] * F[j1][k];
-                        }
-                        y[j][k][0] += h * sum;
-                        for N in 1..y0[k].len() {
-                            sum = 0.;
-                            for j1 in 0..s {
-                                sum += weights[j][j1] * y[j1][k][N - 1];
-                            }
-                            y[j][k][N] += h * sum;
-                        }
-                    }
-                    if j != s {
-                        F[j] = f(t + nodes[j] * h, &y[j]);
-                    }
-                }
-
-                SCC::Implicit(J, comp_J) => {
-                    // calculate constant terms
-                    for &j in J {
-                        for k in 0..y0.len() {
-                            sum = 0.;
-                            for &j1 in comp_J {
-                                sum += weights[j][j1] * F[j1][k];
-                            }
-                            y[j][k][0] += h * sum;
-                            for N in 1..y0[k].len() {
-                                sum = 0.;
-                                for &j1 in comp_J {
-                                    sum += weights[j][j1] * y[j1][k][N - 1];
-                                }
-                                y[j][k][N] += h * sum;
-                            }
-                        }
-                    }
-                    RK::picard_iterations(
-                        threshold, min_iter, max_iter, t, h, nodes, &mut F, J, f, weights, y0,
-                        &mut y,
-                    );
-                }
-            }
-        }
-        return y[s].clone();
     }
 }
 
@@ -184,19 +113,55 @@ impl Solver for RK {
             }
         }
         threshold *= self.error_fraction;
-        RK::approximate_RK(
-            t,
-            h,
-            f,
-            y0,
-            self.s,
-            threshold,
-            &self.computation_order,
-            &self.weights,
-            &self.nodes,
-            self.min_iter,
-            self.max_iter,
-        )
+        let mut F: Vec<Vec<f64>> = (0..self.s).map(|_| vec![0.; y0.len()]).collect();
+        let mut y: Vec<Vec<Vec<f64>>> = (0..=self.s).map(|_| y0.clone()).collect();
+        let mut sum;
+        for task in self.computation_order.iter() {
+            match task {
+                SCC::Explicit(j) => {
+                    let j = *j;
+                    for k in 0..y0.len() {
+                        sum = 0.;
+                        for j1 in 0..self.s {
+                            sum += self.weights[j][j1] * F[j1][k];
+                        }
+                        y[j][k][0] += h * sum;
+                        for N in 1..y0[k].len() {
+                            sum = 0.;
+                            for j1 in 0..self.s {
+                                sum += self.weights[j][j1] * y[j1][k][N - 1];
+                            }
+                            y[j][k][N] += h * sum;
+                        }
+                    }
+                    if j != self.s {
+                        F[j] = f(t + self.nodes[j] * h, &y[j]);
+                    }
+                }
+
+                SCC::Implicit(J, comp_J) => {
+                    // calculate constant terms
+                    for &j in J {
+                        for k in 0..y0.len() {
+                            sum = 0.;
+                            for &j1 in comp_J {
+                                sum += self.weights[j][j1] * F[j1][k];
+                            }
+                            y[j][k][0] += h * sum;
+                            for N in 1..y0[k].len() {
+                                sum = 0.;
+                                for &j1 in comp_J {
+                                    sum += self.weights[j][j1] * y[j1][k][N - 1];
+                                }
+                                y[j][k][N] += h * sum;
+                            }
+                        }
+                    }
+                    self.picard_iterations(f, y0, t, h, J, &mut y, &mut F, threshold);
+                }
+            }
+        }
+        return y[self.s].clone();
     }
 }
 

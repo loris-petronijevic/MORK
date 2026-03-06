@@ -1,22 +1,22 @@
 /*!
 # Multi-Order Runge-Kutta methods (MORK)
 
-`MORK` is an implementation of general multi-order Runge-Kutta methods ([GMORK]), node-determined Runge-Kutta methods ([NDMORK]) and Runge-Kutta methods ([RK]), as described in the paper ["Multi-order Runge-Kutta methods or how to numerically solve initial value problems of any order"](https://doi.org/10.48550/arXiv.2509.23513).
- 
-All methods implement the [Solver] trait, which requires the implementation of an [approximate][Solver::approximate] function. This function, given a differential equation function, initial instant, initial values, and a step size, returns the approximation of the method/struct which implements this trait. 
- 
-Some Runge-Kutta methods ([RK::list]) and node-determined multi-order Runge-Kutta methods ([NDMORK::list]) are already implemented.
+`MORK` is an implementation of general multi-order Runge-Kutta methods ([MORK]) and Runge-Kutta methods ([RK]), as described in the paper ["Multi-order Runge-Kutta methods or how to numerically solve initial value problems of any order"](https://doi.org/10.48550/arXiv.2509.23513).
+
+All methods implement the [Solver] trait, which requires the implementation of an [approximate][Solver::approximate] function. This function, given a differential equation function, initial instant, initial values, and a step size, returns the approximation of the method/struct which implements this trait.
+
+Some Runge-Kutta methods ([RK::list]) and node-determined multi-order Runge-Kutta methods ([MORK::list]) are already implemented.
 
 # Usage
 
-To approximate the solution of an initial value problem, we first need to define an initial value problem. We here consider a system of linear differential equations of dimension two, the initial value problem : 
+To approximate the solution of an initial value problem, we first need to define an initial value problem. We here consider a system of linear differential equations of dimension two, the initial value problem :
 ```
 d^2 y1(t) = f1(t,d y1(t), y1(t),y2 (t)) = - 2 d y1(t) - y1(t) - y2(t)
 d y2(t) = f2(t,d y1(t), y1(t), y2(t)) = 2 d y1(t) + 2 y1(t) + y2(t)
 t0 = 0
 d y1(t0) = -1
 y1(t0) = 0.5
-y2(t0) = 1 
+y2(t0) = 1
 ```
 We define the function `f = (f1,f2)` and the initial values `y_initial = ((d y1(t0), y1(t0)), y2(t0))` :
 ```rust
@@ -25,13 +25,13 @@ let t0 = 0.;
 let y_initial = vec![vec![-1.,0.5],vec![1.]];
 ```
 
-Keep in mind that the firs index of `y_initial` distinguishes the different entries `y1` and `y2`, the second index is for the derivative. The highest derivative is indexed using 0, and as the derivative decreases the index increases. We then choose the method we want to use, we here choose MORK4b :
+Keep in mind that the first index of `y_initial` distinguishes the different entries `y1` and `y2`, the second index is for the derivative. The highest derivative is indexed using 0, and as the derivative decreases the index increases. We then choose the method we want to use, we here choose the method [MORK4b][MORK::list::MORK4b] :
 
 ```rust
-let mut method = MORK4b(); 
+let mut method = MORK4b();
 ```
 
-For this example we will simply iterate a certain number of time the method with a constant step size, we hence define :
+In this example we simply iterate a certain number of time the method with a constant step size, we hence define :
 
 ```rust
 let iterations = 100;
@@ -48,28 +48,28 @@ for _ in 0..iterations {
 }
 ```
 
-To measure the error of the approximation we first need the solution of the initial value problem. For this particular problem the solution is : 
+To measure the error of the approximation we first need the solution of the initial value problem. For this particular problem the solution is :
 ```
 d y1(t) = -1/2 (e^(-t) + cos(t))
-y1(t) = 1/2 (e^(-t)-sin(t))
+y1(t) = 1/2 (e^(-t) - sin(t))
 y2(t) = cos(t)
 ```
-We hence define a solution function :
+We hence define a solution function.
 ```rust
 let solution = |t: f64| vec![vec![-0.5 * ((-t).exp() + t.cos()), 0.5 * ((-t).exp() - t.sin())],vec![t.cos()]];
 ```
 
-We then compute the error at the final time :
+We then compute the error at the final time.
 ```rust
 let exact = solution(h * iterations as f64);
-	
+
 let error = vec![vec![(exact[0][0]-y[0][0]).abs(),(exact[0][1]-y[0][1]).abs()],vec![(exact[1][0]-y[1][0]).abs()]];
 ```
+The final code can be found in the solve_ivp exemple.
 */
 
 #![allow(non_snake_case)]
-pub mod GMORK;
-pub mod NDMORK;
+pub mod MORK;
 pub mod RK;
 pub mod graph;
 

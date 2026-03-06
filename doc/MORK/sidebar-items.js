@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["SCC"],"fn":["create_computation_order"],"mod":["GMORK","NDMORK","RK","graph"],"trait":["Solver"]};
+window.SIDEBAR_ITEMS = {"enum":["SCC"],"fn":["create_computation_order"],"mod":["MORK","RK","graph"],"trait":["Solver"]};
